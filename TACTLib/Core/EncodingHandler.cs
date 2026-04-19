@@ -162,7 +162,7 @@ namespace TACTLib.Core {
             return true;
         }
 
-        public int GetEncodedSize(FullEKey ekey) {
+        private bool TryGetEKeyESpecEntry(FullEKey ekey, out EKeyESpecEntry foundEntry) {
             var searchResult = Array.BinarySearch(EKeyESpecHeaderKeys, ekey);
 
             int pageIndex;
@@ -181,13 +181,33 @@ namespace TACTLib.Core {
             var foundIndex = Array.BinarySearch(entries, speculativeEntry);
 
             if (foundIndex >= 0) {
-                return (int)entries[foundIndex].FileSize.ToInt();
+                foundEntry = entries[foundIndex];
+                return true;
+            }
+            
+            NOT_FOUND:
+            foundEntry = default;
+            return false;
+        }
+
+        public int GetEncodedSize(FullEKey ekey) {
+            if (!TryGetEKeyESpecEntry(ekey, out var foundEntry))
+            {
+                Logger.Warn(nameof(EncodingHandler), $"Unable to get ESize for {ekey.ToHexString()}. This should not happen (and will crash static containers)");
+                //Console.Out.WriteLine($"cant get size for {ekey.ToHexString()}. a o");
+                return 0;
             }
 
-            NOT_FOUND:
-            Logger.Warn(nameof(EncodingHandler), $"Unable to get ESize for {ekey.ToHexString()}. This should not happen (and will crash static containers)");
-            //Console.Out.WriteLine($"cant get size for {ekey.ToHexString()}. a o");
-            return 0;
+            return checked((int)foundEntry.FileSize.ToInt());
+        }
+        
+        public int? GetESpecIndex(FullEKey ekey) {
+            if (!TryGetEKeyESpecEntry(ekey, out var foundEntry))
+            {
+                return null;
+            }
+
+            return checked((int)foundEntry.ESpecIndex.ToInt());
         }
 
         public IEnumerable<CKey> GetCKeys() {
