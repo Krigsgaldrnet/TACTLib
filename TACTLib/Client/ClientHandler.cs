@@ -127,12 +127,6 @@ namespace TACTLib.Client {
                 InstallationInfoFile = new InstallationInfoFile(installationInfoPath);
             }
 
-            if (CreateArgs.Online)
-            {
-                CDNClient = createArgs.CustomCDNClient ?? new HttpCDNClient(null);
-                CDNClient.SetClientHandler(this);
-            }
-
             if (IsStaticContainer) {
                 InstallationInfo = new InstallationInfo(new Dictionary<string, string> {
                     {"Version", ConfigHandler!.BuildConfig.GetBuildName()}
@@ -167,6 +161,11 @@ namespace TACTLib.Client {
             }
             if (CreateArgs.OverrideVersionName != null) {
                 InstallationInfo.Values["Version"] = CreateArgs.OverrideVersionName;
+            }
+            
+            if (CreateArgs.Online) {
+                CDNClient = createArgs.CustomCDNClient ?? new HttpCDNClient(null);
+                CDNClient.SetClientHandler(this);
             }
 
             // try to load the agent database and use the selected language if we don't already have one specified

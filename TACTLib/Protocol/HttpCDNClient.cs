@@ -1,4 +1,6 @@
 using System;
+using System.Collections.Generic;
+using System.Linq;
 using System.Net;
 using System.Net.Http;
 using System.Net.Http.Headers;
@@ -14,7 +16,10 @@ namespace TACTLib.Protocol {
         };
 
         private readonly HttpClient m_httpClient;
-        private ClientHandler m_client;
+        private string[] m_cdnHosts = [];
+        private string m_cdnPath = "";
+        
+        private bool m_log = true;
 
         public HttpCDNClient(HttpClient? httpClient)
         {
@@ -23,25 +28,38 @@ namespace TACTLib.Protocol {
 
         public virtual void SetClientHandler(ClientHandler handler)
         {
-            m_client = handler;
+            var hosts = handler.InstallationInfo.Values["CDNHosts"].Split(' ');
+            var path = handler.InstallationInfo.Values["CDNPath"];
+            
+            Configure(hosts, path);
         }
 
+        public void Configure(IEnumerable<string> cdnHosts, string cdnPath)
+        {
+            m_cdnHosts = cdnHosts.Select(host =>
+            {
+                if (host.StartsWith("http", StringComparison.InvariantCultureIgnoreCase)) return host;
+                return $"http://{host}";
+            }).ToArray();
+
+            m_cdnPath = cdnPath;
+        }
+
+        public void ConfigureLogging(bool log)
+        {
+            m_log = log;
+        }
+        
         public virtual byte[]? Fetch(string type, string key, Range? range=null, string? suffix=null)
         {
             key = key.ToLowerInvariant();
             
-            var hosts = m_client.InstallationInfo.Values["CDNHosts"].Split(' ');
-            foreach (var host in hosts)
+            foreach (var host in m_cdnHosts)
             {
-                if (host.EndsWith("cdn.blizzard.com"))
-                {
-                    continue; // these still dont work very well..
-                }
-                
-                var url = $"http://{host}/{m_client.InstallationInfo.Values["CDNPath"]}/{type}/{key.AsSpan(0, 2)}/{key.AsSpan(2, 2)}/{key}{suffix}";
-                Logger.Info("CDN", $"Fetching file {url}");
+                var url = $"{host}/{m_cdnPath}/{type}/{key.AsSpan(0, 2)}/{key.AsSpan(2, 2)}/{key}{suffix}";
+                if (m_log) Logger.Info("CDN", $"Fetching file {url}");
 
-                var requestMessage = new HttpRequestMessage(HttpMethod.Get, url);
+                using var requestMessage = new HttpRequestMessage(HttpMethod.Get, url);
                 if (range != null)
                 {
                     requestMessage.Headers.Range = new RangeHeaderValue(range.Value.Start.Value, range.Value.End.Value);
